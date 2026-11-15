@@ -38,12 +38,15 @@ function playVoyage(seed, maxSeconds = 900) {
 
 const count = Number(process.argv[2] || 12);
 const ends = {};
+const cleared = [0, 0, 0, 0, 0];
 for (let s = 1; s <= count; s++) {
   const { run, log, end } = playVoyage(s * 7919);
   ends[end] = (ends[end] || 0) + 1;
+  for (let n = 0; n < log.nightTimes.length; n++) cleared[n] += 1;
   console.log(`seed ${String(s * 7919).padStart(6)}  ${end.padEnd(8)} night ${run.nightIndex + 1}  score ${String(run.score).padStart(6)}  home ${run.totalDelivered}  matched ${run.matched}  bestCombo ${run.bestCombo}  nights(s) ${log.nightTimes.join(',')}  wrecks ${JSON.stringify(log.causes)}`);
 }
 console.log('ends', JSON.stringify(ends));
+console.log('nights cleared (of', count, 'seeds):', cleared.map((c, i) => `N${i + 1} ${c}`).join('  '));
 
 const a = playVoyage(4242);
 const b = playVoyage(4242);

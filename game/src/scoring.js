@@ -8,17 +8,17 @@ export function comboMultiplier(combo) {
   return 1 + Math.max(0, combo - 1) * SCORE.comboStep;
 }
 
-export function scoreDock(run, boat, pier) {
+export function scoreDock(run, boat, pier, pay = 1) {
   const worth = BOAT_TYPES[boat.type].worth;
   const match = boat.color === pier.color;
   let points;
   if (match) {
     run.combo += 1;
     run.matched += 1;
-    points = roundTo5(SCORE.dock * worth * comboMultiplier(run.combo));
+    points = roundTo5(SCORE.dock * worth * comboMultiplier(run.combo) * pay);
   } else {
     if (!run.stats.keepCombo) run.combo = 0;
-    points = roundTo5(SCORE.wrongDock * worth);
+    points = roundTo5(SCORE.wrongDock * worth * pay);
   }
   run.bestCombo = Math.max(run.bestCombo, run.combo);
   run.score += points;

@@ -1,7 +1,7 @@
 // Menus and overlay screens: title, how-to-play, pause, night cleared with upgrade cards,
 // game over and dawn (victory). Each screen lays out buttons that scenes.js hit-tests.
 
-import { BOAT_COLORS, FONT, PALETTE, VIEW } from './config.js';
+import { BOAT_COLORS, COUNT_UP, FONT, PALETTE, VIEW } from './config.js';
 import { nightCount } from './world.js';
 
 const CX = VIEW.w / 2;
@@ -142,13 +142,21 @@ function drawIcon(ctx, icon, x, y) {
   ctx.restore();
 }
 
+/** Eased 0..1 for a score count-up, driven by the fixed-step stateTime (never the wall clock). */
+function countFrac(game, seconds) {
+  const t = Math.min(1, game.stateTime / seconds);
+  return 1 - (1 - t) ** 3;
+}
+
 export function drawNightClear(ctx, game) {
   const run = game.run;
   veil(ctx, 0.5);
   text(ctx, `NIGHT ${run.nightIndex + 1} CLEARED`, CX, 110, { size: 40, weight: 'bold', color: PALETTE.good, glow: 14 });
   text(ctx, run.world.night.name, CX, 150, { size: 18, color: PALETTE.dim });
   const b = game.bonus;
-  text(ctx, `Hull bonus +${b.lives}   ·   Oil bonus +${b.oil}   ·   Score ${run.score.toLocaleString('en-US')}`, CX, 196, { size: 17 });
+  const k = countFrac(game, COUNT_UP.night);
+  const shown = Math.round(game.scoreFrom + (run.score - game.scoreFrom) * k);
+  text(ctx, `Hull bonus +${Math.round(b.lives * k)}   ·   Oil bonus +${Math.round(b.oil * k)}   ·   Score ${shown.toLocaleString('en-US')}`, CX, 196, { size: 17, color: k < 1 ? PALETTE.lampHot : PALETTE.text });
   if (game.stateTime < 0.7) return;
   text(ctx, 'Choose a keeper\'s gift for the next night', CX, 262, { size: 18, color: PALETTE.lamp });
   game.buttons.forEach((card, i) => {
@@ -176,8 +184,9 @@ export function endButtons() {
 function drawResults(ctx, game, y) {
   const run = game.run;
   panel(ctx, CX - 250, y, 500, 170);
-  text(ctx, run.score.toLocaleString('en-US'), CX, y + 42, { size: 44, weight: 'bold', color: PALETTE.lamp });
-  text(ctx, game.newBest ? 'NEW BEST SCORE!' : `Best ${game.best.toLocaleString('en-US')}`, CX, y + 80, { size: 14, color: game.newBest ? PALETTE.good : PALETTE.dim, weight: 'bold' });
+  const k = countFrac(game, COUNT_UP.end);
+  text(ctx, Math.round(run.score * k).toLocaleString('en-US'), CX, y + 42, { size: 44, weight: 'bold', color: PALETTE.lamp });
+  if (k >= 1) text(ctx, game.newBest ? 'NEW BEST SCORE!' : `Best ${game.best.toLocaleString('en-US')}`, CX, y + 80, { size: 14, color: game.newBest ? PALETTE.good : PALETTE.dim, weight: 'bold' });
   const stats = [
     ['Nights', `${run.nightIndex + (game.state === 'victory' ? 1 : 0)} / ${nightCount()}`],
     ['Boats home', String(run.totalDelivered)],

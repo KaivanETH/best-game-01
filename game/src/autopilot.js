@@ -3,7 +3,7 @@
 
 import { LIGHTHOUSE, PIER, PIERS } from './config.js';
 import { angleDiff, clamp, dist } from './mathutil.js';
-import { beamHalfAngle } from './beam.js';
+import { beamHalfAngle, beamLength } from './beam.js';
 import { nearestHazard } from './hazards.js';
 
 export function createAutopilot() {
@@ -13,7 +13,7 @@ export function createAutopilot() {
 function urgency(world, stats, boat) {
   if (boat.entering) return -1;
   const reach = dist(boat.x, boat.y, LIGHTHOUSE.x, LIGHTHOUSE.y);
-  if (reach > stats.beamLength) return 0.001;
+  if (reach > beamLength(world.beam, stats)) return 0.001;
   const h = nearestHazard(world, boat.x, boat.y);
   return 1 / (Math.max(h.gap, 1) + 30) + (boat.lit ? 0.01 : 0);
 }
@@ -74,7 +74,7 @@ function leadPoint(world, stats, boat) {
   const limit = beamHalfAngle(world.beam, stats) * 0.6;
   if (Math.abs(off) > limit) {
     const a = aBoat + Math.sign(off) * limit;
-    const rr = clamp(dist(fx, fy, LIGHTHOUSE.x, LIGHTHOUSE.y), 96, stats.beamLength - 10);
+    const rr = clamp(dist(fx, fy, LIGHTHOUSE.x, LIGHTHOUSE.y), 96, beamLength(world.beam, stats) - 10);
     fx = LIGHTHOUSE.x + Math.cos(a) * rr;
     fy = LIGHTHOUSE.y + Math.sin(a) * rr;
   }

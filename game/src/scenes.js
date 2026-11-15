@@ -1,7 +1,7 @@
 // The game's screens as a state machine: title (with a self-playing demo), play, paused,
 // nightClear (upgrade pick), gameOver and victory. Turns world events into sound and effects.
 
-import { BOAT_COLORS, PALETTE, VIEW, LIGHTHOUSE } from './config.js';
+import { BOAT_COLORS, FADE_TIME, FOG, PALETTE, VIEW, LIGHTHOUSE } from './config.js';
 import { createRun, startNight, updateWorld, isFinalNight } from './world.js';
 import { createAutopilot, autopilotCommand } from './autopilot.js';
 import { createAim, readPlayerCommand } from './controls.js';
@@ -23,6 +23,7 @@ export function createGame({ seed, persist, audio }) {
     demo: null, demoPilot: createAutopilot(),
     fx: createFx(seed), best: loadBest(persist), newBest: false,
     showHowTo: false, buttons: [], hover: -1, offer: [], bonus: null, banner: null, reason: null, voyages: 0,
+    fade: 0, scoreFrom: 0,
   };
   game.demo = createRun(seed + 1);
   game.demo.lives = 99;
@@ -32,6 +33,7 @@ export function createGame({ seed, persist, audio }) {
 }
 
 function setState(game, state, input) {
+  if (game.state !== state) game.fade = FADE_TIME; // fade in from black, timed by fixed steps
   game.state = state;
   game.stateTime = 0;
   game.hover = -1;
@@ -76,7 +78,8 @@ function showEvents(game, events, audible) {
     if (e.type === 'dock') {
       burst(game.fx, e.x, e.y, BOAT_COLORS[e.color], e.match ? 22 : 10);
       ring(game.fx, e.x, e.y, BOAT_COLORS[e.pier], 46);
-      floatText(game.fx, e.x, e.y - 22, e.match ? `+${e.points}  ×${e.combo}` : `+${e.points} wrong pier`, e.match ? PALETTE.lampHot : PALETTE.dim, e.match ? 20 : 15);
+      const fogTag = e.fogPay ? `  fog ×${FOG.pay}` : '';
+      floatText(game.fx, e.x, e.y - 22, e.match ? `+${e.points}  ×${e.combo}${fogTag}` : `+${e.points} wrong pier${fogTag}`, e.match ? PALETTE.lampHot : PALETTE.dim, e.match ? 20 : 15);
       sfx(e.match ? 'dock' : 'wrongDock', e.combo);
     } else if (e.type === 'crash') {
       burst(game.fx, e.x, e.y, PALETTE.foam, 26, 140);
@@ -101,6 +104,16 @@ function showEvents(game, events, audible) {
       sfx('lowOil');
     } else if (e.type === 'hornDenied') {
       sfx('hornDenied');
+    } else if (e.type === 'incoming') {
+      sfx('incoming');
+    } else if (e.type === 'fogWarn') {
+      floatText(game.fx, LIGHTHOUSE.x, LIGHTHOUSE.y - 70, 'A fog bank is rolling in…', PALETTE.foam, 17);
+      sfx('fogBell');
+    } else if (e.type === 'fogIn') {
+      floatText(game.fx, LIGHTHOUSE.x, LIGHTHOUSE.y - 70, `Fog! Short beam — docks pay ×${FOG.pay}`, PALETTE.lampHot, 18);
+      sfx('fogBell');
+    } else if (e.type === 'fogOut') {
+      floatText(game.fx, LIGHTHOUSE.x, LIGHTHOUSE.y - 70, 'The fog lifts', PALETTE.dim, 16);
     }
   }
 }
@@ -140,6 +153,7 @@ function updatePlay(game, input, dt) {
   for (const e of events) {
     if (e.type === 'nightClear') {
       game.bonus = nightBonus(run);
+      game.scoreFrom = run.score;
       run.score += game.bonus.total;
       if (isFinalNight(run)) {
         finishVoyage(game, 'victory', input);
@@ -170,6 +184,7 @@ function pickUpgrade(game, upgrade, input) {
 export function updateGame(game, input, dt) {
   game.time += dt;
   game.stateTime += dt;
+  game.fade = Math.max(0, game.fade - dt);
   if (input.wasPressed('KeyM')) game.audio.toggleMute();
   updateFx(game.fx, dt);
 
@@ -206,7 +221,21 @@ export function updateGame(game, input, dt) {
   }
 }
 
+function drawFade(ctx, game) {
+  if (game.fade <= 0) return;
+  const a = game.fade / FADE_TIME;
+  ctx.save();
+  ctx.fillStyle = `rgba(2, 5, 12, ${(a * a).toFixed(3)})`;
+  ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+  ctx.restore();
+}
+
 export function drawGame(ctx, game) {
+  drawScene(ctx, game);
+  drawFade(ctx, game);
+}
+
+function drawScene(ctx, game) {
   const off = shakeOffset(game.fx);
   ctx.save();
   ctx.translate(off.x, off.y);

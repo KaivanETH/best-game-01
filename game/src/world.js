@@ -2,7 +2,7 @@
 // Pure logic: it takes a command ({aimX, aimY, focus, horn}) and returns events for the
 // scenes to turn into sound, particles and screens.
 
-import { BASE_STATS, LIGHTHOUSE, NIGHTS, PIER, PIERS, SHORE_Y, START_LIVES } from './config.js';
+import { BASE_STATS, FOG, LIGHTHOUSE, NIGHTS, PIER, PIERS, SHORE_Y, SPAWN_WARN, START_LIVES } from './config.js';
 import { createRng, mixSeed } from './rng.js';
 import { aimBeam, createBeam, isLit } from './beam.js';
 import { hazardHit, nearestHazard, placeLogs, placeRocks, placeWhirlpools, updateHazards } from './hazards.js';
@@ -46,6 +46,9 @@ export function startNight(run) {
     beam: createBeam(),
     spawnRng: createRng(mixSeed(run.seed, run.nightIndex, 2)),
     driftRng: createRng(mixSeed(run.seed, run.nightIndex, 3)),
+    fog: planFog(run, night),
+    fogLevel: 0,
+    incoming: [],
     spawnTimer: 0.8,
     oil: run.stats.oilMax,
     hornCooldown: 0,
@@ -58,6 +61,54 @@ export function startNight(run) {
   };
   return run.world;
 }
+
+/** The night's fog bank: when it rolls in, from its own seeded stream so other rolls are untouched. */
+function planFog(run, night) {
+  if (!night.fog) return null;
+  const rng = createRng(mixSeed(run.seed, run.nightIndex, 4));
+  const at = rng.range(FOG.startMin, FOG.startMax);
+  return { at, end: at + FOG.duration, phase: 'calm' };
+}
+
+/** 0 = clear water, 1 = thick fog; ramps in and out over FOG.ramp seconds. */
+export function fogLevelAt(fog, time) {
+  if (!fog) return 0;
+  const t = time - fog.at;
+  if (t <= 0 || t >= FOG.duration) return 0;
+  return Math.min(1, t / FOG.ramp, (FOG.duration - t) / FOG.ramp);
+}
+
+/** Seconds of fog left (or until it lands, while warned), for the HUD readout. */
+export function fogReadout(world) {
+  const fog = world.fog;
+  if (!fog) return null;
+  if (fog.phase === 'warn') return { phase: 'warn', left: fog.at - world.time, frac: (fog.at - world.time) / FOG.warn };
+  if (fog.phase === 'fog') return { phase: 'fog', left: fog.end - world.time, frac: (fog.end - world.time) / FOG.duration };
+  return null;
+}
+
+function updateFog(world, events) {
+  const fog = world.fog;
+  if (!fog) return;
+  const t = world.time;
+  if (fog.phase === 'calm' && t >= fog.at - FOG.warn) {
+    fog.phase = 'warn';
+    events.push({ type: 'fogWarn' });
+  }
+  if (fog.phase === 'warn' && t >= fog.at) {
+    fog.phase = 'fog';
+    events.push({ type: 'fogIn' });
+  }
+  if (fog.phase === 'fog' && t >= fog.end) {
+    fog.phase = 'gone';
+    events.push({ type: 'fogOut' });
+  }
+  world.fogLevel = fogLevelAt(fog, t);
+  world.beam.angleMul = 1 + (FOG.beamAngle - 1) * world.fogLevel;
+  world.beam.lengthMul = 1 + (FOG.beamLength - 1) * world.fogLevel;
+}
+
+export const fogPays = (world) => world.fogLevel >= 0.5;
 
 export const nightOf = (run) => NIGHTS[run.nightIndex];
 export const isFinalNight = (run) => run.nightIndex >= NIGHTS.length - 1;
@@ -83,17 +134,27 @@ function soundHorn(world, stats) {
 }
 
 function spawnBoats(world, events, dt) {
+  for (let i = world.incoming.length - 1; i >= 0; i--) {
+    const inc = world.incoming[i];
+    inc.warn -= dt;
+    if (inc.warn > 0) continue;
+    world.incoming.splice(i, 1);
+    world.boats.push(inc.boat);
+    events.push({ type: 'spawn', x: Math.min(Math.max(inc.boat.x, 14), 946), y: Math.max(inc.boat.y, 14), color: inc.boat.color });
+  }
+  const afloat = world.boats.length + world.incoming.length;
   world.spawnTimer -= dt;
-  if (world.boats.length === 0 && world.spawnTimer > 1.2) world.spawnTimer = 1.2;
+  if (afloat === 0 && world.spawnTimer > 1.2) world.spawnTimer = 1.2;
   if (world.spawnTimer > 0) return;
-  if (world.boats.length >= world.night.maxBoats) {
+  if (afloat >= world.night.maxBoats) {
     world.spawnTimer = 0.5;
     return;
   }
+  // The boat is rolled now but waits off-screen for SPAWN_WARN seconds behind an edge marker.
   const boat = spawnBoat(world, world.spawnRng);
-  world.boats.push(boat);
+  world.incoming.push({ boat, warn: SPAWN_WARN });
   world.spawnTimer = world.night.spawnEvery * world.spawnRng.range(0.8, 1.2);
-  events.push({ type: 'spawn', x: Math.min(Math.max(boat.x, 14), 946), y: Math.max(boat.y, 14), color: boat.color });
+  events.push({ type: 'incoming', color: boat.color });
 }
 
 function resolveBoats(run, world, events) {
@@ -103,11 +164,12 @@ function resolveBoats(run, world, events) {
     if (boat.entering) continue;
     const pier = pierUnder(boat);
     if (pier) {
-      const result = scoreDock(run, boat, pier);
+      const fogPay = fogPays(world);
+      const result = scoreDock(run, boat, pier, fogPay ? FOG.pay : 1);
       world.delivered += 1;
       run.totalDelivered += 1;
       world.oil = Math.min(stats.oilMax, world.oil + stats.oilPerDock * (result.match ? 1.5 : 1));
-      events.push({ type: 'dock', x: boat.x, y: boat.y, color: boat.color, pier: pier.color, ...result });
+      events.push({ type: 'dock', x: boat.x, y: boat.y, color: boat.color, pier: pier.color, fogPay, ...result });
       world.boats.splice(i, 1);
       continue;
     }
@@ -130,10 +192,12 @@ export function updateWorld(run, cmd, dt) {
   world.time += dt;
   run.time += dt;
 
-  aimBeam(world.beam, cmd, stats);
+  updateFog(world, events);
+  aimBeam(world.beam, cmd, stats, dt);
 
   const oilBefore = world.oil;
-  world.oil = Math.max(0, world.oil - (stats.oilDrain + (world.beam.focused ? stats.focusDrain : 0)) * dt);
+  const burn = world.night.oilBurn * (1 + (FOG.oilBurn - 1) * world.fogLevel);
+  world.oil = Math.max(0, world.oil - (stats.oilDrain + (world.beam.focused ? stats.focusDrain : 0)) * burn * dt);
   const lowLine = stats.oilMax * 0.25;
   if (oilBefore >= lowLine && world.oil < lowLine) events.push({ type: 'lowOil' });
 

@@ -24,6 +24,32 @@ export function createAudio() {
       s = (Math.imul(s, 1103515245) + 12345) >>> 0;
       data[i] = (s / 4294967296) * 2 - 1;
     }
+    startSurf();
+  }
+
+  // Ambience: the looping noise buffer through a low filter, swelling and ebbing like surf on
+  // the shore (a slow LFO on its gain). Purely audible: nothing in the simulation reads it.
+  function startSurf() {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer;
+    src.loop = true;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 420;
+    filter.Q.value = 0.4;
+    const swell = ctx.createGain();
+    swell.gain.value = 0.07;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.11;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.045;
+    lfo.connect(depth).connect(swell.gain);
+    const sweep = ctx.createGain();
+    sweep.gain.value = 160;
+    lfo.connect(sweep).connect(filter.frequency);
+    src.connect(filter).connect(swell).connect(master);
+    src.start();
+    lfo.start();
   }
 
   function tone(freq, dur, { type = 'sine', vol = 0.25, slide = 0, delay = 0 } = {}) {
@@ -76,6 +102,11 @@ export function createAudio() {
       tone(110, 1.1, { type: 'sawtooth', vol: 0.18 });
       tone(82, 1.1, { type: 'square', vol: 0.06 });
     },
+    incoming: () => tone(740, 0.18, { type: 'sine', vol: 0.035, slide: 120 }),
+    fogBell: () => {
+      tone(196, 2.2, { type: 'sine', vol: 0.12 });
+      tone(392 * 1.19, 1.6, { type: 'sine', vol: 0.035, delay: 0.01 });
+    },
     hornDenied: () => tone(160, 0.1, { type: 'square', vol: 0.06 }),
     lowOil: () => { tone(300, 0.12, { type: 'square', vol: 0.08 }); tone(300, 0.12, { type: 'square', vol: 0.08, delay: 0.18 }); },
     nightClear: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.4, { type: 'triangle', vol: 0.18, delay: i * 0.11 })),
@@ -91,6 +122,7 @@ export function createAudio() {
     },
     toggleMute() {
       muted = !muted;
+      if (master) master.gain.value = muted ? 0 : 0.45;
       return muted;
     },
     get muted() {

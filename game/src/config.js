@@ -52,10 +52,10 @@ export const BASE_STATS = {
   focusNarrow: 0.55,
   focusBoost: 1.7,
   lureSpeed: 1,
-  oilMax: 100,
-  oilDrain: 1.1,
-  focusDrain: 8,
-  oilPerDock: 9,
+  oilMax: 120, // R3: was 100 — more headroom so a human can afford to focus early
+  oilDrain: 1.0, // R3: was 1.1
+  focusDrain: 6.5, // R3: was 8 — focus was the main way new players burned out
+  oilPerDock: 11, // R3: was 9 (x1.5 on the right pier)
   hornCooldown: 9,
   hornPush: 150,
   hornCalm: 2.5,
@@ -67,12 +67,39 @@ export const START_LIVES = 3;
 
 export const SCORE = { dock: 100, wrongDock: 40, comboStep: 0.5, lifeBonus: 150, oilBonus: 4 };
 
+// R3 balance: nights 1-3 got gentler quotas (6/8/10 -> 5/7/9) and an oil-burn discount
+// (oilBurn multiplies oilDrain + focusDrain). Nights 4-5 keep their R1 quotas at full burn.
 export const NIGHTS = [
-  { name: 'Still Water', quota: 6, spawnEvery: 3.4, maxBoats: 3, current: [0, 7], rocks: 5, whirlpools: 0, logs: 0, types: ['skiff', 'skiff', 'trawler'], dark: 0.5, rain: 0, caution: 1 },
-  { name: 'Crosscurrent', quota: 8, spawnEvery: 3.0, maxBoats: 4, current: [11, 9], rocks: 6, whirlpools: 0, logs: 0, types: ['skiff', 'trawler', 'courier'], dark: 0.56, rain: 0, caution: 0.8 },
-  { name: 'The Maelstrom', quota: 10, spawnEvery: 2.7, maxBoats: 4, current: [-12, 10], rocks: 6, whirlpools: 1, logs: 0, types: ['skiff', 'trawler', 'courier'], dark: 0.6, rain: 0.25, caution: 0.65 },
-  { name: 'Driftwood Run', quota: 12, spawnEvery: 2.4, maxBoats: 5, current: [14, 11], rocks: 7, whirlpools: 1, logs: 2, types: ['skiff', 'trawler', 'courier', 'courier'], dark: 0.64, rain: 0.5, caution: 0.5 },
-  { name: 'The Long Storm', quota: 14, spawnEvery: 2.2, maxBoats: 6, current: [-16, 13], rocks: 7, whirlpools: 2, logs: 3, types: ['skiff', 'trawler', 'courier', 'courier'], dark: 0.72, rain: 1, caution: 0.42 },
+  { name: 'Still Water', quota: 5, oilBurn: 0.6, spawnEvery: 3.4, maxBoats: 3, current: [0, 7], rocks: 5, whirlpools: 0, logs: 0, types: ['skiff', 'skiff', 'trawler'], dark: 0.5, rain: 0, caution: 1, fog: false },
+  { name: 'Crosscurrent', quota: 7, oilBurn: 0.72, spawnEvery: 3.0, maxBoats: 4, current: [11, 9], rocks: 6, whirlpools: 0, logs: 0, types: ['skiff', 'trawler', 'courier'], dark: 0.56, rain: 0, caution: 0.8, fog: true },
+  { name: 'The Maelstrom', quota: 9, oilBurn: 0.85, spawnEvery: 2.7, maxBoats: 4, current: [-12, 10], rocks: 6, whirlpools: 1, logs: 0, types: ['skiff', 'trawler', 'courier'], dark: 0.6, rain: 0.25, caution: 0.65, fog: true },
+  { name: 'Driftwood Run', quota: 12, oilBurn: 1, spawnEvery: 2.4, maxBoats: 5, current: [14, 11], rocks: 7, whirlpools: 1, logs: 2, types: ['skiff', 'trawler', 'courier', 'courier'], dark: 0.64, rain: 0.5, caution: 0.5, fog: true },
+  { name: 'The Long Storm', quota: 14, oilBurn: 1, spawnEvery: 2.2, maxBoats: 6, current: [-16, 13], rocks: 7, whirlpools: 2, logs: 3, types: ['skiff', 'trawler', 'courier', 'courier'], dark: 0.72, rain: 1, caution: 0.42, fog: true },
 ];
+
+// Mid-night event: a fog bank rolls in once per night (from night 2). While it lies on the
+// water the beam is narrower and shorter, but every dock pays fog pay and the lamp burns low.
+export const FOG = {
+  startMin: 18, // seconds into the night it rolls in (seeded per night between min and max)
+  startMax: 30,
+  warn: 3, // seconds of "fog rolling in" warning before it lands
+  duration: 14, // seconds the fog lies on the water (ramps included)
+  ramp: 1.5, // seconds to thicken / thin out at either end
+  beamAngle: 0.7, // beam half-angle multiplier at full fog
+  beamLength: 0.78, // beam reach multiplier at full fog
+  pay: 1.5, // dock points multiplier while fog is at least half thick
+  oilBurn: 0.8, // lamp turned low in fog: oil burn multiplier at full fog
+};
+
+// Feel: the lamp housing is heavy, so the beam swings on a damped spring instead of snapping.
+export const BEAM_FEEL = {
+  stiffness: 300, // spring pull toward the aim angle (1/s^2)
+  damping: 29, // a bit under critical (2*sqrt(300) ~= 34.6): overshoots a touch, then settles
+  reachFollow: 10, // reach eases toward the aim distance at this rate (1/s)
+};
+
+export const SPAWN_WARN = 1.1; // seconds an edge marker shows before a boat sails in
+export const FADE_TIME = 0.32; // seconds of the black fade between screens
+export const COUNT_UP = { night: 0.7, end: 0.9 }; // score count-up seconds on cleared / dawn screens
 
 export const FONT = '"Trebuchet MS", "Segoe UI", "DejaVu Sans", system-ui, sans-serif';

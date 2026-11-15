@@ -1,14 +1,15 @@
 // Draws the harbor at night: sea, shore and piers, the lighthouse islet, hazards, boats,
 // and the darkness the lamp cuts through.
 
-import { BOAT_COLORS, BOAT_TYPES, LIGHTHOUSE, PALETTE, PIER, PIERS, SHORE_Y, VIEW } from './config.js';
-import { beamArc, beamHalfAngle } from './beam.js';
+import { BOAT_COLORS, BOAT_TYPES, LIGHTHOUSE, PALETTE, PIER, PIERS, SHORE_Y, SPAWN_WARN, VIEW } from './config.js';
+import { beamArc, beamHalfAngle, beamLength } from './beam.js';
 import { logEnds } from './hazards.js';
 import { createRng } from './rng.js';
 
 const waveRng = createRng(99);
 const WAVES = Array.from({ length: 70 }, () => ({ x: waveRng.range(0, VIEW.w), y: waveRng.range(0, SHORE_Y), len: waveRng.range(10, 26), phase: waveRng.range(0, 6.28) }));
 const RAIN = Array.from({ length: 120 }, () => ({ x: waveRng.range(0, VIEW.w), y: waveRng.range(0, VIEW.h), speed: waveRng.range(500, 800) }));
+const FOG_PUFFS = Array.from({ length: 16 }, () => ({ x: waveRng.range(0, VIEW.w + 300), y: waveRng.range(60, SHORE_Y), r: waveRng.range(90, 170), speed: waveRng.range(10, 24), phase: waveRng.range(0, 6.28) }));
 let shade = null;
 
 function drawSea(ctx, t, current) {
@@ -228,7 +229,7 @@ function drawDarkness(ctx, world, stats, lampOn) {
     s.fillRect(x - r, y - r, r * 2, r * 2);
   };
   if (lampOn) {
-    const g = s.createRadialGradient(LIGHTHOUSE.x, LIGHTHOUSE.y, 20, LIGHTHOUSE.x, LIGHTHOUSE.y, stats.beamLength);
+    const g = s.createRadialGradient(LIGHTHOUSE.x, LIGHTHOUSE.y, 20, LIGHTHOUSE.x, LIGHTHOUSE.y, beamLength(world.beam, stats));
     g.addColorStop(0, 'rgba(0,0,0,1)');
     g.addColorStop(1, 'rgba(0,0,0,0.25)');
     s.fillStyle = g;
@@ -243,7 +244,7 @@ function drawDarkness(ctx, world, stats, lampOn) {
   if (!lampOn) return;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const glow = ctx.createRadialGradient(LIGHTHOUSE.x, LIGHTHOUSE.y, 10, LIGHTHOUSE.x, LIGHTHOUSE.y, stats.beamLength);
+  const glow = ctx.createRadialGradient(LIGHTHOUSE.x, LIGHTHOUSE.y, 10, LIGHTHOUSE.x, LIGHTHOUSE.y, beamLength(world.beam, stats));
   const hot = world.beam.focused ? 0.34 : 0.22;
   glow.addColorStop(0, `rgba(255, 216, 120, ${hot})`);
   glow.addColorStop(1, 'rgba(255, 216, 120, 0)');
@@ -290,6 +291,57 @@ function drawRain(ctx, amount, t) {
   ctx.restore();
 }
 
+/** The fog bank: a cool veil plus soft banks drifting across the harbor, thick as world.fogLevel. */
+function drawFog(ctx, level, t) {
+  if (level <= 0) return;
+  ctx.save();
+  ctx.fillStyle = `rgba(120, 140, 170, ${(0.07 * level).toFixed(3)})`;
+  ctx.fillRect(0, 0, VIEW.w, VIEW.h);
+  const span = VIEW.w + 340;
+  for (const p of FOG_PUFFS) {
+    const x = ((p.x + t * p.speed) % span) - 170;
+    const y = p.y + Math.sin(t * 0.4 + p.phase) * 10;
+    // Stacked flat discs instead of a gradient: soft enough, and no dithering noise.
+    ctx.fillStyle = `rgba(160, 178, 205, ${(0.045 * level).toFixed(3)})`;
+    for (const k of [1, 0.72, 0.45]) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, p.r * k, p.r * k * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/** Edge markers: a pulsing chevron where a boat is about to sail in, in its pier color. */
+function drawIncoming(ctx, world, t) {
+  for (const inc of world.incoming) {
+    const b = inc.boat;
+    const x = Math.min(Math.max(b.x, 18), VIEW.w - 18);
+    const y = Math.min(Math.max(b.y, 62), SHORE_Y - 20);
+    const grow = 1 - inc.warn / SPAWN_WARN;
+    const pulse = 0.55 + 0.45 * Math.sin(t * 14);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(b.course);
+    ctx.globalAlpha = (0.35 + 0.65 * grow) * pulse;
+    ctx.fillStyle = BOAT_COLORS[b.color];
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 2; i++) {
+      const o = i * 9 - 4;
+      ctx.beginPath();
+      ctx.moveTo(o + 8, 0);
+      ctx.lineTo(o - 4, -9);
+      ctx.lineTo(o - 1, 0);
+      ctx.lineTo(o - 4, 9);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 export function drawWorld(ctx, run, t, { reticle = false } = {}) {
   const world = run.world;
   drawSea(ctx, t, world.night.current);
@@ -300,7 +352,9 @@ export function drawWorld(ctx, run, t, { reticle = false } = {}) {
   for (const boat of world.boats) drawBoat(ctx, boat, t);
   drawIslet(ctx, t);
   drawDarkness(ctx, world, run.stats, world.over !== 'lampOut');
+  drawFog(ctx, world.fogLevel, t);
   drawRain(ctx, world.night.rain, t);
+  drawIncoming(ctx, world, t);
   if (reticle) drawReticle(ctx, world, t);
 }
 

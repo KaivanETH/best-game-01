@@ -2,7 +2,8 @@
 
 import { BOAT_COLORS, FONT, PALETTE, VIEW } from './config.js';
 import { comboMultiplier } from './scoring.js';
-import { nightCount } from './world.js';
+import { fogReadout, nightCount } from './world.js';
+import { FOG } from './config.js';
 
 const BAR_H = 46;
 
@@ -86,7 +87,33 @@ export function drawHud(ctx, run, t) {
   ctx.arc(cx, 23, 15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - world.hornCooldown / stats.hornCooldown));
   ctx.stroke();
   label(ctx, 'HORN', cx, 26, ready ? PALETTE.good : PALETTE.dim, 7, 'center');
+  drawFogReadout(ctx, world, t);
   ctx.restore();
+}
+
+/** A pill under the bar while the fog bank is coming or lying on the water. */
+function drawFogReadout(ctx, world, t) {
+  const fog = fogReadout(world);
+  if (!fog) return;
+  const w = 300;
+  const x = VIEW.w / 2 - w / 2;
+  const y = BAR_H + 8;
+  const warn = fog.phase === 'warn';
+  ctx.fillStyle = PALETTE.panel;
+  ctx.strokeStyle = warn && Math.sin(t * 8) > 0 ? PALETTE.lamp : 'rgba(190, 205, 228, 0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, 30, 15);
+  ctx.fill();
+  ctx.stroke();
+  const secs = Math.max(0, Math.ceil(fog.left));
+  if (warn) {
+    label(ctx, `FOG ROLLING IN  ·  ${secs}s`, VIEW.w / 2, y + 19, PALETTE.foam, 12, 'center');
+  } else {
+    label(ctx, `FOG BANK ${secs}s`, x + 16, y + 19, PALETTE.foam, 12);
+    label(ctx, `DOCKS ×${FOG.pay}`, x + w - 16, y + 19, PALETTE.lampHot, 12, 'right');
+    meter(ctx, x + 124, y + 11, 64, 8, fog.frac, 'rgba(190, 205, 228, 0.85)');
+  }
 }
 
 export function drawControlsHint(ctx, alpha) {
