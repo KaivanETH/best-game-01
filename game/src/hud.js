@@ -61,18 +61,18 @@ export function drawHud(ctx, run, t) {
 
   label(ctx, 'SCORE', VIEW.w / 2, 15, PALETTE.dim, 10, 'center');
   label(ctx, run.score.toLocaleString('en-US'), VIEW.w / 2, 39, PALETTE.lamp, 24, 'center');
-  if (run.combo > 1) label(ctx, `COMBO ×${comboMultiplier(run.combo).toFixed(1)}`, VIEW.w / 2 + 70, 37, BOAT_COLORS.amber, 13);
+  if (run.combo > 1) label(ctx, `COMBO ×${comboMultiplier(run.combo).toFixed(1)}`, VIEW.w / 2 + 62, 37, BOAT_COLORS.amber, 12);
 
-  label(ctx, 'HULLS', 610, 18);
+  label(ctx, 'HULLS', 640, 18);
   for (let i = 0; i < stats.maxLives; i++) {
     if (i >= 3 && i >= run.lives) continue;
-    hullIcon(ctx, 620 + i * 24, 36, i < run.lives);
+    hullIcon(ctx, 650 + i * 22, 36, i < run.lives);
   }
 
   const oilFrac = world.oil / stats.oilMax;
   const low = oilFrac < 0.25;
-  label(ctx, 'LAMP OIL', 750, 18, low && Math.sin(t * 10) > 0 ? PALETTE.danger : PALETTE.dim);
-  meter(ctx, 750, 26, 110, 10, oilFrac, low ? PALETTE.danger : PALETTE.lamp);
+  label(ctx, 'LAMP OIL', 772, 18, low && Math.sin(t * 10) > 0 ? PALETTE.danger : PALETTE.dim);
+  meter(ctx, 772, 26, 96, 10, oilFrac, low ? PALETTE.danger : PALETTE.lamp);
 
   const ready = world.hornCooldown <= 0;
   const cx = 914;
@@ -85,7 +85,7 @@ export function drawHud(ctx, run, t) {
   ctx.beginPath();
   ctx.arc(cx, 23, 15, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - world.hornCooldown / stats.hornCooldown));
   ctx.stroke();
-  label(ctx, 'HORN', cx, 27, ready ? PALETTE.good : PALETTE.dim, 9, 'center');
+  label(ctx, 'HORN', cx, 26, ready ? PALETTE.good : PALETTE.dim, 7, 'center');
   ctx.restore();
 }
 

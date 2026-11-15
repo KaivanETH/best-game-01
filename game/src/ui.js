@@ -75,7 +75,9 @@ export function drawTitle(ctx, game) {
   text(ctx, 'Keep the light. Guide every lost boat home through the storm.', CX, 222, { size: 19, color: PALETTE.text });
   text(ctx, 'Five nights · three piers · one lamp', CX, 252, { size: 14, color: PALETTE.dim });
   drawButtons(ctx, game.buttons, game.hover);
-  text(ctx, game.best > 0 ? `Best score  ${game.best.toLocaleString('en-US')}` : 'No voyages yet — set the first record', CX, 460, { size: 15, color: PALETTE.dim });
+  const blink = 0.55 + 0.45 * Math.sin(game.time * 3);
+  text(ctx, 'Press ENTER or click to start', CX, 452, { size: 20, weight: 'bold', color: `rgba(255, 244, 207, ${blink.toFixed(3)})` });
+  text(ctx, game.best > 0 ? `Best score  ${game.best.toLocaleString('en-US')}` : 'No voyages yet — set the first record', CX, 488, { size: 15, color: PALETTE.dim });
   text(ctx, `M: sound ${game.audio.muted ? 'off' : 'on'}`, VIEW.w - 20, VIEW.h - 18, { size: 12, color: PALETTE.dim, align: 'right' });
   if (game.showHowTo) drawHowTo(ctx);
 }
