@@ -1,0 +1,21 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #04091a;
+  overflow: hidden;
+}
+
+#stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+}
+
+#game {
+  display: block;
+  outline: none;
+  box-shadow: 0 0 60px rgba(255, 216, 120, 0.12);
+}
